@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::*;
@@ -37,7 +39,7 @@ impl ListItem {
 
 #[derive(Debug, Clone)]
 pub struct State {
-    items: Vec<ListItem>,
+    items: Rc<RefCell<Vec<ListItem>>>,
 }
 
 pub struct Main {
@@ -61,12 +63,12 @@ impl Render for Main {
             .child("Add Item")
             .on_mouse_down(MouseButton::Left, move |_, cx| {
                 cx.update_model(&state_model, |state: &mut State, cx| {
-                    let count = state.items.len();
+                    let count = state.items.borrow().len();
                     let new_item = ListItem::new(
-                        format!("Item {}", count).to_string(),
-                        "Subtitle".to_string().to_string(),
+                        format!("Item {}", count),
+                        "Subtitle".to_string(),
                     );
-                    state.items.push(new_item);
+                    state.items.borrow_mut().push(new_item);
                     cx.notify();
                 })
             });
@@ -90,7 +92,7 @@ impl Render for Main {
 impl Main {
     pub fn new(cx: &mut WindowContext) -> View<Self> {
         cx.new_view(|cx| {
-            let state_model = cx.new_model(|_cx| State { items: vec![] });
+            let state_model = cx.new_model(|_cx| State { items: Rc::new(RefCell::new(vec![])) });
 
             let list_state = ListState::new(0, ListAlignment::Bottom, Pixels(20.), |_, _| {
                 div().into_any_element()
@@ -98,11 +100,12 @@ impl Main {
             cx.observe(&state_model, |this: &mut Main, model, cx| {
                 let state = model.read(cx).clone();
                 let scroll_offset = this.list_state.logical_scroll_top();
+                let len = state.items.borrow().len();
                 this.list_state = ListState::new(
-                    state.items.len(),
+                    len,
                     ListAlignment::Bottom,
                     Pixels(20.),
-                    move |index, _cx| div().child(state.items[index].clone()).into_any_element(),
+                    move |index, _cx| div().child(state.items.borrow()[index].clone()).into_any_element(),
                 );
                 this.list_state.scroll_to(scroll_offset);
                 cx.notify();
@@ -124,12 +127,12 @@ impl Main {
                     Timer::after(Duration::from_millis(100)).await
                 }).await;
                 let result = cx.update_model(&state_model, |state, cx| {
-                    let count = state.items.len();
+                    let count = state.items.borrow().len();
                     let new_item = ListItem::new(
-                        format!("Item {}", count).to_string(),
-                        "Subtitle".to_string().to_string(),
+                        format!("Item {}", count),
+                        "Subtitle".to_string(),
                     );
-                    state.items.push(new_item);
+                    state.items.borrow_mut().push(new_item);
                     cx.notify();
                 });
                 if let Err(e) = result {
